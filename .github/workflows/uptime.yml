@@ -1,10 +1,10 @@
-# 每小时检查网站能不能打开。连续 3 次（间隔 1 分钟）都打不开才算挂了：
+# 每 15 分钟检查网站能不能打开。连续 3 次（间隔 1 分钟）都打不开才算挂了：
 # 开一个 issue 并推一次微信（Server 酱）；恢复时关掉 issue 再推一次。
 # 同一次故障只推这两次，不会每小时重复推。
 name: uptime
 on:
   schedule:
-    - cron: "23 * * * *"
+    - cron: "8,23,38,53 * * * *"
   workflow_dispatch:
 permissions:
   issues: write
