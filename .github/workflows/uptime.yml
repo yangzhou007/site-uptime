@@ -1,0 +1,44 @@
+# 每小时检查网站能不能打开。连续 3 次（间隔 1 分钟）都打不开才算挂了：
+# 开一个 issue 并推一次微信（Server 酱）；恢复时关掉 issue 再推一次。
+# 同一次故障只推这两次，不会每小时重复推。
+name: uptime
+on:
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+permissions:
+  issues: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        site:
+          - { name: ziweihome.com, url: "https://ziweihome.com/zh-hant" }
+    steps:
+      - name: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SENDKEY: ${{ secrets.SERVERCHAN_SENDKEY }}
+          NAME: ${{ matrix.site.name }}
+          URL: ${{ matrix.site.url }}
+        run: |
+          set -u
+          ok=0
+          for i in 1 2 3; do
+            code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 -A 'site-uptime/1.0' "$URL" || echo 000)
+            echo "try $i: $code"
+            if [ "$code" = "200" ]; then ok=1; break; fi
+            [ $i -lt 3 ] && sleep 60
+          done
+          title="DOWN: $NAME"
+          open=$(gh issue list -R "$GITHUB_REPOSITORY" --state open --search "\"$title\" in:title" --json number -q '.[0].number')
+          push() { curl -s -X POST "https://sctapi.ftqq.com/$SENDKEY.send" --data-urlencode "title=$1" --data-urlencode "desp=$2" > /dev/null; }
+          if [ $ok = 0 ] && [ -z "$open" ]; then
+            gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --body "$URL 连续 3 次打不开（最后状态 $code），$(date -u +%FT%TZ)"
+            push "$NAME 打不开" "$URL 连续 3 次打不开（状态 $code）。恢复后会再通知一次。"
+          elif [ $ok = 1 ] && [ -n "$open" ]; then
+            gh issue close -R "$GITHUB_REPOSITORY" "$open" --comment "恢复 $(date -u +%FT%TZ)"
+            push "$NAME 已恢复" "$URL 已能正常打开。"
+          fi
